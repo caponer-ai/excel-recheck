@@ -39,7 +39,8 @@ def summary(run: Run) -> str:
         f"Перевірок: {len(run.results)}. Зійшлось: {tally[Status.OK]}. "
         f"Розбіжностей: {tally[Status.DIFF]}. Не перевірено: {tally[Status.SKIPPED]}.\n"
         f"Чисел у файлі: {run.numeric_total}. Поза перевірками: {uncovered}. "
-        f"Нерозпізнаних рядків таблиць: {len(run.unrecognized)}."
+        f"Рядків поза правилами таблиць: {len(run.unrecognized)}. "
+        f"Порожніх доданків, порахованих як нуль: {sum(r.empty_parts for r in run.results)}."
     )
 
 
@@ -93,10 +94,18 @@ def render(run: Run, file_name: str, spec_name: str) -> str:
             lines.append(f"- {r.check.group}. {r.check.name}: {r.reason}")
     else:
         lines.append("Немає.")
-    lines += ["", "### Рядки таблиць з числами, які не розпізнано", ""]
+    lines += ["", "### Рядки таблиць, які не вкладаються в правила", ""]
     if run.unrecognized:
         for row in run.unrecognized:
-            lines.append(f"- {row.sheet}, р. {row.row}: «{row.label}»")
+            lines.append(f"- {row.sheet}, р. {row.row}: «{row.label}», {row.reason}")
+    else:
+        lines.append("Немає.")
+    lines += ["", "### Порожні клітинки, пораховані як нуль", ""]
+    with_empty = [r for r in run.results if r.empty_parts and r.status is not Status.SKIPPED]
+    if with_empty:
+        for r in with_empty:
+            empty = ", ".join(c.ref for c in r.cells[1:] if c.kind is Kind.EMPTY)
+            lines.append(f"- {r.check.group}. {r.check.name}: {empty}")
     else:
         lines.append("Немає.")
     lines += ["", "### Числа, яких не торкнулась жодна перевірка", ""]

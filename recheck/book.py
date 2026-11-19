@@ -77,7 +77,8 @@ def classify(value: object, raw: object = None) -> tuple[Kind, Decimal | None]:
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
             return Kind.TEXT, None
-        return Kind.NUMBER, Decimal(repr(value))
+        # Excel тримає 15 значущих цифр; далі йде двійковий шум на кшталт 0.30000000000000004
+        return Kind.NUMBER, Decimal(format(value, ".15g"))
     if isinstance(value, str):
         compact = _SPACES.sub("", value)
         if not compact:

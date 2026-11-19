@@ -219,3 +219,26 @@ def test_missing_sheet_is_a_clear_error(tmp_path: Path) -> None:
 def test_bad_spec_is_rejected(data: object) -> None:
     with pytest.raises(SpecError):
         parse_spec(data)
+
+
+def test_binary_noise_stored_in_the_file_is_not_a_discrepancy() -> None:
+    # результат формули 0.1 + 0.2 лежить у файлі як 0.30000000000000004
+    assert classify(0.1 + 0.2) == (Kind.NUMBER, Decimal("0.3"))
+    assert classify(1234567.89) == (Kind.NUMBER, Decimal("1234567.89"))
+    assert classify(0.01) == (Kind.NUMBER, Decimal("0.01"))
+
+
+def test_total_among_its_own_parts_is_a_spec_error(tmp_path: Path) -> None:
+    book = make_book(tmp_path, {"A1": 1, "A2": 2, "A3": 3, "A4": 6})
+    with pytest.raises(SpecError, match="серед власних доданків"):
+        evaluate(book, total_check(plus=("Аркуш!A1:A4",)))
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"tol": "Infinity"}, {"tol": "-0.01"}, {"tol": "NaN"}, {"scale": "0"}, {"scale": "Infinity"}],
+)
+def test_tolerance_and_scale_that_switch_the_check_off_are_rejected(extra: dict[str, str]) -> None:
+    item = {"id": "x", "group": "Г", "name": "н", "total": "А!A1", "plus": ["А!A2"], **extra}
+    with pytest.raises(SpecError):
+        parse_spec({"checks": [item]})

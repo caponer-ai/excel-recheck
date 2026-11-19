@@ -51,8 +51,56 @@ MUTANTS = [
     (
         "M08 нерозпізнаний рядок ховається",
         "recheck/checks.py",
-        "            if has_numbers:\n",
+        "        elif has_numbers(row):\n",
+        "        elif False:\n",
+    ),
+    (
+        "M16 рядок з чужим кодом у групі ховається",
+        "recheck/checks.py",
+        "                if not label.startswith(open_group[1]):\n",
+        "                if False:\n",
+    ),
+    (
+        "M17 рядки після підсумку ховаються",
+        "recheck/checks.py",
+        "            if label or has_numbers(row):\n",
         "            if False:\n",
+    ),
+    (
+        "M18 нескінченний допуск приймається",
+        "recheck/checks.py",
+        "    if not number.is_finite():\n",
+        "    if False:\n",
+    ),
+    (
+        "M19 від'ємний допуск приймається",
+        "recheck/checks.py",
+        '        if _decimal(item.get("tol", "0"), where) < 0:\n',
+        "        if False:\n",
+    ),
+    (
+        "M20 нульовий множник приймається",
+        "recheck/checks.py",
+        '        if _decimal(item.get("scale", "1"), where) == 0:\n',
+        "        if False:\n",
+    ),
+    (
+        "M21 підсумок серед власних доданків приймається",
+        "recheck/checks.py",
+        "    if total.ref in {cell.ref for cell in parts}:\n",
+        "    if False:\n",
+    ),
+    (
+        "M22 зіпсований файл валить програму замість коду 3",
+        "recheck/__main__.py",
+        "except (InvalidFileException, BadZipFile, KeyError) as error:",
+        "except (RuntimeError,) as error:",
+    ),
+    (
+        "M23 двійковий шум у файлі стає розбіжністю",
+        "recheck/book.py",
+        'format(value, ".15g")',
+        'format(value, ".17g")',
     ),
     (
         "M09 коди рядків рахуються як числа",
@@ -73,9 +121,9 @@ MUTANTS = [
         "_BAD_KINDS = (Kind.TEXT, Kind.TEXT_NUMBER)",
     ),
     (
-        "M12 float без repr (двійковий шум)",
+        "M12 float береться як є (двійковий хвіст)",
         "recheck/book.py",
-        "Decimal(repr(value))",
+        'Decimal(format(value, ".15g"))',
         "Decimal(value)",
     ),
     (

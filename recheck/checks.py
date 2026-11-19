@@ -59,6 +59,7 @@ class Unrecognized:
     sheet: str
     row: int
     label: str
+    reason: str = "не підходить під жодне правило"
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,8 @@ def evaluate(book: Book, check: Check) -> Result:
     minus = [cell for ref in check.minus for cell in book.cells(ref)]
     parts = plus + minus
     used = (total, *parts)
+    if total.ref in {cell.ref for cell in parts}:
+        raise SpecError(f"{check.id}: підсумок {total.ref} стоїть серед власних доданків.")
 
     def skipped(reason: str) -> Result:
         return Result(check, Status.SKIPPED, total.value, None, reason, used)
@@ -160,27 +163,38 @@ def expand_table(book: Book, table: Table) -> tuple[list[Check], list[Unrecogniz
             )
         )
 
+    def has_numbers(row: int) -> bool:
+        return any(
+            book.cell(sheet, f"{col}{row}").kind in (Kind.NUMBER, Kind.TEXT_NUMBER)
+            for col in table.sum_cols
+        )
+
     for row in range(table.first_row, book.max_row(sheet) + 1):
         label = _label(book.cell(sheet, f"{table.label_col}{row}"))
-        if label == table.total_label:
+        if total_row is not None:
+            # усе, що йде після підсумку, у підсумок не входить: мовчки не пропускаємо
+            if label or has_numbers(row):
+                unknown.append(Unrecognized(sheet, row, label, "стоїть після підсумкового рядка"))
+        elif label == table.total_label:
             total_row = row
-            break
-        if detail.fullmatch(label):
+        elif detail.fullmatch(label):
             all_details.append(row)
             if open_group is not None:
                 open_group[2].append(row)
+                if not label.startswith(open_group[1]):
+                    reason = f"код не починається з коду групи «{open_group[1]}», у якій стоїть"
+                    unknown.append(Unrecognized(sheet, row, label, reason))
+            elif group is not None:
+                unknown.append(
+                    Unrecognized(sheet, row, label, "рядок-деталь стоїть до першої групи")
+                )
             rule(row, label, "row")
         elif group is not None and group.fullmatch(label):
             open_group = (row, label, [])
             groups.append(open_group)
             rule(row, label, "group")
-        else:
-            has_numbers = any(
-                book.cell(sheet, f"{col}{row}").kind in (Kind.NUMBER, Kind.TEXT_NUMBER)
-                for col in table.sum_cols
-            )
-            if has_numbers:
-                unknown.append(Unrecognized(sheet, row, label))
+        elif has_numbers(row):
+            unknown.append(Unrecognized(sheet, row, label))
 
     if total_row is None:
         raise SpecError(
@@ -230,9 +244,12 @@ _RULE_KEYS = {"plus", "minus", "equals"}
 
 def _decimal(value: object, where: str) -> Decimal:
     try:
-        return Decimal(str(value))
+        number = Decimal(str(value))
     except InvalidOperation:
         raise SpecError(f"{where}: «{value}» не є числом.") from None
+    if not number.is_finite():
+        raise SpecError(f"{where}: «{value}» не є скінченним числом.")
+    return number
 
 
 def _keys(item: dict[str, object], allowed: set[str], required: set[str], where: str) -> None:
@@ -259,6 +276,10 @@ def parse_spec(data: object) -> Spec:
     for number, item in enumerate(data.get("checks", []), start=1):
         where = f"checks[{number}]"
         _keys(item, _CHECK_KEYS, {"id", "group", "name", "total", "plus"}, where)
+        if _decimal(item.get("tol", "0"), where) < 0:
+            raise SpecError(f"{where}: допуск не може бути від'ємним.")
+        if _decimal(item.get("scale", "1"), where) == 0:
+            raise SpecError(f"{where}: множник не може бути нулем.")
         spec.checks.append(
             Check(
                 id=unique(str(item["id"])),

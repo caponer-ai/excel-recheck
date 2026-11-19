@@ -7,6 +7,9 @@ import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from zipfile import BadZipFile
+
+from openpyxl.utils.exceptions import InvalidFileException
 
 from recheck.book import Book, RefError
 from recheck.checks import SpecError, Status, load_spec, run
@@ -29,7 +32,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     started = time.perf_counter()
     try:
-        outcome = run(Book(args.file), load_spec(args.checks))
+        spec = load_spec(args.checks)
+        try:
+            book = Book(args.file)
+        except (InvalidFileException, BadZipFile, KeyError) as error:
+            raise SpecError(f"{args.file.name} не читається як .xlsx ({error})") from None
+        outcome = run(book, spec)
     except (SpecError, RefError, OSError) as error:
         print(f"Не можу почати перевірку: {error}", file=sys.stderr)
         return 3

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
+from openpyxl.worksheet.worksheet import Worksheet
 
 from demo import make_demo
 from recheck.__main__ import main
@@ -78,8 +81,6 @@ def test_uncovered_numbers_are_listed_not_hidden(clean: Path) -> None:
 
 
 def test_row_that_fits_no_rule_is_reported(clean: Path, tmp_path: Path) -> None:
-    from openpyxl import load_workbook
-
     workbook = load_workbook(clean)
     sheet = workbook[make_demo.STOCK]
     sheet.insert_rows(6)
@@ -124,3 +125,57 @@ def test_cli_exit_codes(clean: Path, tmp_path: Path, capsys: pytest.CaptureFixtu
     bad_spec.write_text("{", encoding="utf-8")
     assert main([str(clean), "--checks", str(bad_spec)]) == 3
     assert "Не можу почати перевірку" in capsys.readouterr().err
+
+
+def edited(clean: Path, tmp_path: Path, edit: Callable[[Worksheet], None], sheet: str) -> Path:
+    workbook = load_workbook(clean)
+    edit(workbook[sheet])
+    path = tmp_path / "edited.xlsx"
+    workbook.save(path)
+    return path
+
+
+def test_row_with_a_foreign_code_inside_a_group_is_reported(clean: Path, tmp_path: Path) -> None:
+    # суми сходяться, бо рядок просто стоїть не в своїй групі; саме тому це треба показати
+    def move(sheet: Worksheet) -> None:
+        sheet["A6"] = "203.009"
+
+    outcome = check(edited(clean, tmp_path, move, make_demo.STOCK))
+    assert {result.status for result in outcome.results} == {Status.OK}
+    assert [(row.row, row.label) for row in outcome.unrecognized] == [(6, "203.009")]
+    assert "групи «201»" in outcome.unrecognized[0].reason
+    assert exit_code(outcome) == 2
+
+
+def test_row_after_the_total_is_reported(clean: Path, tmp_path: Path) -> None:
+    def append(sheet: Worksheet) -> None:
+        row = sheet.max_row + 1
+        sheet[f"A{row}"], sheet[f"D{row}"], sheet[f"G{row}"] = "207.099", 100.0, 999.0
+
+    outcome = check(edited(clean, tmp_path, append, make_demo.STOCK))
+    assert [row.reason for row in outcome.unrecognized] == ["стоїть після підсумкового рядка"]
+    assert exit_code(outcome) == 2
+
+
+def test_empty_part_counted_as_zero_is_listed_in_the_report(clean: Path, tmp_path: Path) -> None:
+    def blank(sheet: Worksheet) -> None:
+        sheet["C11"] = round(sheet["C11"].value - sheet["C5"].value, 2)
+        sheet["C5"] = None
+
+    path = edited(clean, tmp_path, blank, make_demo.INCOME)
+    outcome = run(Book(path), load_spec(make_demo.SPEC))
+    result = next(r for r in outcome.results if r.check.id == "inc.total")
+    assert (result.status, result.empty_parts) == (Status.OK, 1)
+    text = render(outcome, path.name, make_demo.SPEC.name)
+    section = text.split("### Порожні клітинки, пораховані як нуль")[1].split("###")[0]
+    assert "Доходи!C5" in section
+
+
+def test_unreadable_file_gives_exit_code_3(clean: Path, tmp_path: Path) -> None:
+    spec = str(make_demo.SPEC)
+    old_format = tmp_path / "report.xls"
+    old_format.write_bytes(clean.read_bytes())
+    assert main([str(old_format), "--checks", spec]) == 3
+    broken = tmp_path / "broken.xlsx"
+    broken.write_bytes(b"this is not a spreadsheet")
+    assert main([str(broken), "--checks", spec]) == 3
