@@ -260,7 +260,8 @@ def main() -> None:
     build_clean()
     build_with_defects()
     outcome = run(Book(WITH_DEFECTS), load_spec(SPEC))
-    SAMPLE_REPORT.write_text(render(outcome, WITH_DEFECTS.name, SPEC.name), encoding="utf-8")
+    text = render(outcome, WITH_DEFECTS.name, SPEC.name)
+    SAMPLE_REPORT.write_text(text, encoding="utf-8", newline="\n")
     print(f"Готово: {CLEAN.name}, {WITH_DEFECTS.name}, {SAMPLE_REPORT.name}")
 
 

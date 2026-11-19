@@ -50,7 +50,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Час прогону: {elapsed:.2f} с")
 
     if args.out:
-        args.out.write_text(render(outcome, args.file.name, args.checks.name), encoding="utf-8")
+        text = render(outcome, args.file.name, args.checks.name)
+        args.out.write_text(text, encoding="utf-8", newline="\n")
         print(f"Звіт: {args.out}")
     return exit_code(outcome)
 
