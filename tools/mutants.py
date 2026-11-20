@@ -57,8 +57,8 @@ MUTANTS = [
     (
         "M16 рядок з чужим кодом у групі ховається",
         "recheck/checks.py",
-        "                if not label.startswith(open_group[1]):\n",
-        "                if False:\n",
+        "if tail == label or tail[:1].isalnum():",
+        "if False:",
     ),
     (
         "M17 рядки після підсумку ховаються",
@@ -165,7 +165,7 @@ MUTANTS = [
     (
         "M28 мінус U+2212 не розпізнається",
         "recheck/book.py",
-        r'_TEXT_NUMBER = re.compile(r"[-−]?',
+        r'_TEXT_NUMBER = re.compile(r"[-\u2212]?',
         r'_TEXT_NUMBER = re.compile(r"-?',
     ),
     (

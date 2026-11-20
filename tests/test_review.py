@@ -73,8 +73,8 @@ def test_code_that_only_shares_digits_with_the_group_is_reported(tmp_path: Path)
     [
         ("−500,00", "-500.00"),  # мінус U+2212: саме так його друкує наш власний звіт
         ("(1 234,56)", "-1234.56"),
-        ("1 234,56", "1234.56"),
-        ("1 234,56", "1234.56"),
+        ("1\u00a0234,56", "1234.56"),
+        ("1\u202f234,56", "1234.56"),
     ],
 )
 def test_negative_and_spaced_text_numbers_are_recognised(text: str, number: str) -> None:
