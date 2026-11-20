@@ -139,6 +139,60 @@ MUTANTS = [
         "    if tally[Status.SKIPPED]:\n",
     ),
     (
+        "M24 рядок без звичайних чисел мовчки зникає з таблиці",
+        "recheck/checks.py",
+        "kind is not Kind.EMPTY for col in watched",
+        "kind is Kind.NUMBER for col in watched",
+    ),
+    (
+        "M25 належність до групи за самим початком коду",
+        "recheck/checks.py",
+        "if tail == label or tail[:1].isalnum():",
+        "if tail == label:",
+    ),
+    (
+        "M26 регулярний вираз у правилах не перевіряється",
+        "recheck/checks.py",
+        "        re.compile(str(value))\n",
+        "        pass\n",
+    ),
+    (
+        "M27 таблиця без жодної перевірки приймається",
+        "recheck/checks.py",
+        "        if not sum_cols and not row_rule:\n",
+        "        if False:\n",
+    ),
+    (
+        "M28 мінус U+2212 не розпізнається",
+        "recheck/book.py",
+        r'_TEXT_NUMBER = re.compile(r"[-−]?',
+        r'_TEXT_NUMBER = re.compile(r"-?',
+    ),
+    (
+        "M29 від'ємне в дужках не розпізнається",
+        "recheck/book.py",
+        "        if bracketed:\n",
+        "        if False:\n",
+    ),
+    (
+        "M30 правила не в UTF-8 валять програму",
+        "recheck/checks.py",
+        "    except UnicodeDecodeError:\n",
+        "    except UnicodeEncodeError:\n",
+    ),
+    (
+        "M31 нуль перевірок вважається успіхом",
+        "recheck/checks.py",
+        "    if not results:\n",
+        "    if False:\n",
+    ),
+    (
+        "M32 список правил не перевіряється на тип елементів",
+        "recheck/checks.py",
+        "not all(isinstance(item, dict) for item in value)",
+        "False",
+    ),
+    (
         "M15 текст у сумі не вважається проблемою",
         "recheck/checks.py",
         "_BAD_KINDS = (Kind.TEXT, Kind.TEXT_NUMBER, Kind.FORMULA_NO_VALUE)",
@@ -188,7 +242,10 @@ def main() -> int:
             )
         finally:
             path.write_bytes(original)
-        caught = done.returncode != 0
+        if done.returncode not in (0, 1):  # 1 це «тести впали»; решта це зламаний прогін
+            print(f"{name}: pytest завершився з кодом {done.returncode}", file=sys.stderr)
+            return 2
+        caught = done.returncode == 1
         killed += caught
         print(("СПІЙМАНО  " if caught else "ВИЖИВ     ") + name)
     print()

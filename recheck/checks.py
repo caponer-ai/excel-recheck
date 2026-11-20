@@ -163,17 +163,20 @@ def expand_table(book: Book, table: Table) -> tuple[list[Check], list[Unrecogniz
             )
         )
 
-    def has_numbers(row: int) -> bool:
-        return any(
-            book.cell(sheet, f"{col}{row}").kind in (Kind.NUMBER, Kind.TEXT_NUMBER)
-            for col in table.sum_cols
-        )
+    watched = dict.fromkeys(
+        (*table.sum_cols, *table.rule_plus, *table.rule_minus, table.rule_equals)
+    )
+    watched.pop("", None)
+
+    def has_content(row: int) -> bool:
+        # будь-що непорожнє: текст «(1 234,56)» чи формула без значення теж не зникають мовчки
+        return any(book.cell(sheet, f"{col}{row}").kind is not Kind.EMPTY for col in watched)
 
     for row in range(table.first_row, book.max_row(sheet) + 1):
         label = _label(book.cell(sheet, f"{table.label_col}{row}"))
         if total_row is not None:
             # усе, що йде після підсумку, у підсумок не входить: мовчки не пропускаємо
-            if label or has_numbers(row):
+            if label or has_content(row):
                 unknown.append(Unrecognized(sheet, row, label, "стоїть після підсумкового рядка"))
         elif label == table.total_label:
             total_row = row
@@ -181,7 +184,8 @@ def expand_table(book: Book, table: Table) -> tuple[list[Check], list[Unrecogniz
             all_details.append(row)
             if open_group is not None:
                 open_group[2].append(row)
-                if not label.startswith(open_group[1]):
+                tail = label.removeprefix(open_group[1])
+                if tail == label or tail[:1].isalnum():  # «2015.002» не належить групі «201»
                     reason = f"код не починається з коду групи «{open_group[1]}», у якій стоїть"
                     unknown.append(Unrecognized(sheet, row, label, reason))
             elif group is not None:
@@ -193,7 +197,7 @@ def expand_table(book: Book, table: Table) -> tuple[list[Check], list[Unrecogniz
             open_group = (row, label, [])
             groups.append(open_group)
             rule(row, label, "group")
-        elif has_numbers(row):
+        elif has_content(row):
             unknown.append(Unrecognized(sheet, row, label))
 
     if total_row is None:
@@ -252,6 +256,26 @@ def _decimal(value: object, where: str) -> Decimal:
     return number
 
 
+def _objects(value: object, where: str) -> list[dict[str, object]]:
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise SpecError(f"{where}: очікую список об'єктів.")
+    return value
+
+
+def _strings(value: object, where: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise SpecError(f"{where}: очікую список рядків.")
+    return tuple(value)
+
+
+def _regex(value: object, where: str) -> str:
+    try:
+        re.compile(str(value))
+    except re.error as error:
+        raise SpecError(f"{where}: «{value}» не є регулярним виразом ({error}).") from None
+    return str(value)
+
+
 def _keys(item: dict[str, object], allowed: set[str], required: set[str], where: str) -> None:
     extra = set(item) - allowed
     if extra:
@@ -273,7 +297,7 @@ def parse_spec(data: object) -> Spec:
         seen.add(ident)
         return ident
 
-    for number, item in enumerate(data.get("checks", []), start=1):
+    for number, item in enumerate(_objects(data.get("checks", []), "checks"), start=1):
         where = f"checks[{number}]"
         _keys(item, _CHECK_KEYS, {"id", "group", "name", "total", "plus"}, where)
         if _decimal(item.get("tol", "0"), where) < 0:
@@ -286,32 +310,40 @@ def parse_spec(data: object) -> Spec:
                 group=str(item["group"]),
                 name=str(item["name"]),
                 total=str(item["total"]),
-                plus=tuple(item["plus"]),
-                minus=tuple(item.get("minus", ())),
+                plus=_strings(item["plus"], f"{where}.plus"),
+                minus=_strings(item.get("minus", []), f"{where}.minus"),
                 scale=_decimal(item.get("scale", "1"), where),
                 tol=_decimal(item.get("tol", "0"), where),
                 note=str(item.get("note", "")),
             )
         )
-    for number, item in enumerate(data.get("tables", []), start=1):
+    for number, item in enumerate(_objects(data.get("tables", []), "tables"), start=1):
         where = f"tables[{number}]"
         required = _TABLE_KEYS - {"group_regex", "row_rule"}
         _keys(item, _TABLE_KEYS, required, where)
         row_rule = item.get("row_rule") or {}
+        if not isinstance(row_rule, dict):
+            raise SpecError(f"{where}.row_rule: очікую об'єкт.")
         if row_rule:
             _keys(row_rule, _RULE_KEYS, {"plus", "equals"}, f"{where}.row_rule")
+        first_row = item["first_row"]
+        if isinstance(first_row, bool) or not isinstance(first_row, int) or first_row < 1:
+            raise SpecError(f"{where}.first_row: очікую номер рядка, ціле число від 1.")
+        sum_cols = _strings(item["sum_cols"], f"{where}.sum_cols")
+        if not sum_cols and not row_rule:
+            raise SpecError(f"{where}: немає ні «sum_cols», ні «row_rule», перевіряти нічого.")
         spec.tables.append(
             Table(
                 id=unique(str(item["id"])),
                 sheet=str(item["sheet"]),
-                first_row=int(item["first_row"]),
+                first_row=first_row,
                 label_col=str(item["label_col"]),
                 total_label=str(item["total_label"]),
-                detail_regex=str(item["detail_regex"]),
-                group_regex=str(item.get("group_regex", "")),
-                sum_cols=tuple(item["sum_cols"]),
-                rule_plus=tuple(row_rule.get("plus", ())),
-                rule_minus=tuple(row_rule.get("minus", ())),
+                detail_regex=_regex(item["detail_regex"], f"{where}.detail_regex"),
+                group_regex=_regex(item.get("group_regex", ""), f"{where}.group_regex"),
+                sum_cols=sum_cols,
+                rule_plus=_strings(row_rule.get("plus", []), f"{where}.row_rule.plus"),
+                rule_minus=_strings(row_rule.get("minus", []), f"{where}.row_rule.minus"),
                 rule_equals=str(row_rule.get("equals", "")),
             )
         )
@@ -323,6 +355,8 @@ def parse_spec(data: object) -> Spec:
 def load_spec(path: str | Path) -> Spec:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except UnicodeDecodeError:
+        raise SpecError(f"Файл правил {path}: кодування не UTF-8.") from None
     except json.JSONDecodeError as error:
         raise SpecError(f"Файл правил {path}: це не JSON ({error}).") from None
     return parse_spec(data)
@@ -348,6 +382,8 @@ def run(book: Book, spec: Spec) -> Run:
         results = [evaluate(book, check) for check in checks]
     except RefError as error:
         raise SpecError(str(error)) from None
+    if not results:
+        raise SpecError("Правила не дали жодної перевірки: нуль перевірок це не «усе зійшлось».")
 
     touched = {cell.ref for result in results for cell in result.cells}
     labels: set[str] = set()  # коди рядків це підписи, а не суми

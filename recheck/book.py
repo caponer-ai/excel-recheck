@@ -29,8 +29,9 @@ class RefError(ValueError):
     """Посилання в правилах не відповідає файлу або записане з помилкою."""
 
 
-_TEXT_NUMBER = re.compile(r"-?\d+(?:[.,]\d+)?")
-_SPACES = re.compile(r"[\s  ]")
+_TEXT_NUMBER = re.compile(r"[-\u2212]?\d+(?:[.,]\d+)?")
+_BRACKETED = re.compile(r"\((\d+(?:[.,]\d+)?)\)")  # бухгалтерський мінус: (1 234,56)
+_SPACES = re.compile(r"\s")  # \s у Python ловить і нерозривні пробіли
 _REF = re.compile(r"(?P<sheet>.+)!(?P<first>[A-Z]{1,3}[1-9]\d*)(?::(?P<last>[A-Z]{1,3}[1-9]\d*))?")
 
 
@@ -83,8 +84,11 @@ def classify(value: object, raw: object = None) -> tuple[Kind, Decimal | None]:
         compact = _SPACES.sub("", value)
         if not compact:
             return Kind.EMPTY, None
+        bracketed = _BRACKETED.fullmatch(compact)
+        if bracketed:
+            compact = "-" + bracketed[1]
         if _TEXT_NUMBER.fullmatch(compact):
-            return Kind.TEXT_NUMBER, Decimal(compact.replace(",", "."))
+            return Kind.TEXT_NUMBER, Decimal(compact.replace(",", ".").replace("\u2212", "-"))
         return Kind.TEXT, None
     return Kind.TEXT, None  # дати та інше: для суми це не число
 

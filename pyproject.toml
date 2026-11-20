@@ -2,8 +2,15 @@
 name = "excel-recheck"
 version = "0.1.0"
 description = "Незалежний перерахунок підсумків Excel-звіту: що зійшлось, що не перевірено, звідки числа"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = ["openpyxl>=3.1"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["recheck"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -11,7 +18,7 @@ addopts = "-q --strict-markers"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
