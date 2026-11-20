@@ -51,7 +51,7 @@ MUTANTS = [
     (
         "M08 нерозпізнаний рядок ховається",
         "recheck/checks.py",
-        "        elif has_numbers(row):\n",
+        "        elif has_content(row):\n",
         "        elif False:\n",
     ),
     (
@@ -63,7 +63,7 @@ MUTANTS = [
     (
         "M17 рядки після підсумку ховаються",
         "recheck/checks.py",
-        "            if label or has_numbers(row):\n",
+        "            if label or has_content(row):\n",
         "            if False:\n",
     ),
     (
