@@ -59,7 +59,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.out:
         text = render(outcome, args.file.name, args.checks.name)
-        args.out.write_text(text, encoding="utf-8", newline="\n")
+        try:
+            args.out.write_text(text, encoding="utf-8", newline="\n")
+        except OSError as error:
+            # код 1 означав би «є розбіжності», а звіту про них немає
+            print(f"Перевірку виконано, але звіт не записано: {error}", file=sys.stderr)
+            return 3
         print(f"Звіт: {args.out}")
     return exit_code(outcome)
 

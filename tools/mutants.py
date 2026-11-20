@@ -193,6 +193,30 @@ MUTANTS = [
         "False",
     ),
     (
+        "M33 цифра замість літери стовпчика валить програму",
+        "recheck/checks.py",
+        "    if not isinstance(value, str) or not _COLUMN.fullmatch(value):\n",
+        "    if False:\n",
+    ),
+    (
+        "M34 звіт, який не записався, дає код «є розбіжності»",
+        "recheck/__main__.py",
+        "        except OSError as error:\n",
+        "        except RuntimeError as error:\n",
+    ),
+    (
+        "M35 допуск, не менший за самі числа, дає «зійшлось»",
+        "recheck/checks.py",
+        "    if check.tol > 0 and 0 < largest <= check.tol:\n",
+        "    if False:\n",
+    ),
+    (
+        "M36 рядок-деталь до першої групи ховається",
+        "recheck/checks.py",
+        "            elif group is not None:\n",
+        "            elif False:\n",
+    ),
+    (
         "M15 текст у сумі не вважається проблемою",
         "recheck/checks.py",
         "_BAD_KINDS = (Kind.TEXT, Kind.TEXT_NUMBER, Kind.FORMULA_NO_VALUE)",

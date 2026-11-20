@@ -119,6 +119,12 @@ def evaluate(book: Book, check: Check) -> Result:
 
     mine = (total_of(plus) - total_of(minus)) * check.scale
     assert total.value is not None
+    largest = max(abs(mine), abs(total.value))
+    if check.tol > 0 and 0 < largest <= check.tol:
+        # допуск «1e30» скінченний, але з ним зійдеться що завгодно
+        return skipped(
+            f"допуск {check.tol:f} не менший за самі числа, порівняння нічого не доводить"
+        )
     status = Status.OK if abs(mine - total.value) <= check.tol else Status.DIFF
     return Result(check, status, total.value, mine, "", used, empty)
 
@@ -268,6 +274,19 @@ def _strings(value: object, where: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+_COLUMN = re.compile(r"[A-Z]{1,3}")
+
+
+def _column(value: object, where: str) -> str:
+    if not isinstance(value, str) or not _COLUMN.fullmatch(value):
+        raise SpecError(f"{where}: «{value}» не є літерою стовпчика. Очікую A, B або AA.")
+    return value
+
+
+def _columns(value: object, where: str) -> tuple[str, ...]:
+    return tuple(_column(item, where) for item in _strings(value, where))
+
+
 def _regex(value: object, where: str) -> str:
     try:
         re.compile(str(value))
@@ -329,7 +348,8 @@ def parse_spec(data: object) -> Spec:
         first_row = item["first_row"]
         if isinstance(first_row, bool) or not isinstance(first_row, int) or first_row < 1:
             raise SpecError(f"{where}.first_row: очікую номер рядка, ціле число від 1.")
-        sum_cols = _strings(item["sum_cols"], f"{where}.sum_cols")
+        sum_cols = _columns(item["sum_cols"], f"{where}.sum_cols")
+        rule_equals = _column(row_rule["equals"], f"{where}.row_rule.equals") if row_rule else ""
         if not sum_cols and not row_rule:
             raise SpecError(f"{where}: немає ні «sum_cols», ні «row_rule», перевіряти нічого.")
         spec.tables.append(
@@ -337,14 +357,14 @@ def parse_spec(data: object) -> Spec:
                 id=unique(str(item["id"])),
                 sheet=str(item["sheet"]),
                 first_row=first_row,
-                label_col=str(item["label_col"]),
+                label_col=_column(item["label_col"], f"{where}.label_col"),
                 total_label=str(item["total_label"]),
                 detail_regex=_regex(item["detail_regex"], f"{where}.detail_regex"),
                 group_regex=_regex(item.get("group_regex", ""), f"{where}.group_regex"),
                 sum_cols=sum_cols,
-                rule_plus=_strings(row_rule.get("plus", []), f"{where}.row_rule.plus"),
-                rule_minus=_strings(row_rule.get("minus", []), f"{where}.row_rule.minus"),
-                rule_equals=str(row_rule.get("equals", "")),
+                rule_plus=_columns(row_rule.get("plus", []), f"{where}.row_rule.plus"),
+                rule_minus=_columns(row_rule.get("minus", []), f"{where}.row_rule.minus"),
+                rule_equals=rule_equals,
             )
         )
     if not spec.checks and not spec.tables:

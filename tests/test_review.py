@@ -126,3 +126,69 @@ def test_broken_rules_file_gives_exit_code_3(tmp_path: Path, rules: bytes) -> No
     spec = tmp_path / "rules.json"
     spec.write_bytes(rules)
     assert main([str(book), "--checks", str(spec)]) == 3
+
+
+# Третє рев'ю, 20.11.2026: ще три місця, де код виходу або статус казали неправду.
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"label_col": "1"},
+        {"label_col": "a"},
+        {"label_col": 1},
+        {"sum_cols": ["B", "2"]},
+        {"row_rule": {"plus": ["B"], "equals": "7"}},
+        {"row_rule": {"plus": ["B", "!"], "equals": "B"}},
+        {"row_rule": {"plus": ["B"], "minus": ["B2"], "equals": "B"}},
+    ],
+)
+def test_column_that_is_not_a_letter_gives_exit_code_3(
+    tmp_path: Path, overrides: dict[str, object]
+) -> None:
+    # раніше цифра замість літери валила програму з кодом 1, тобто «є розбіжності»
+    book = save(tmp_path, [("201", 30), ("201.001", 30), ("Разом", 30)])
+    spec = tmp_path / "rules.json"
+    spec.write_text(json.dumps({"tables": [{**TABLE, **overrides}]}), encoding="utf-8")
+    assert main([str(book), "--checks", str(spec)]) == 3
+
+
+def test_report_that_cannot_be_written_gives_exit_code_3(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # файл чистий, перевірка пройшла, а звіт просять покласти в теку, якої немає
+    book = save(tmp_path, [("201", 30), ("201.001", 30), ("Разом", 30)])
+    spec = tmp_path / "rules.json"
+    spec.write_text(json.dumps({"tables": [TABLE]}), encoding="utf-8")
+    missing = tmp_path / "немає такої теки" / "report.md"
+    assert main([str(book), "--checks", str(spec), "--out", str(missing)]) == 3
+    assert "звіт не записано" in capsys.readouterr().err
+    assert main([str(book), "--checks", str(spec), "--out", str(tmp_path / "report.md")]) == 0
+
+
+@pytest.mark.parametrize("tol", ["1e30", "38000000", "30"])
+def test_tolerance_not_smaller_than_the_numbers_is_not_a_pass(tmp_path: Path, tol: str) -> None:
+    # у файлі підсумок 1, деталі дають 30: з таким допуском «зійшлося» б що завгодно
+    path = save(tmp_path, [("а", 0), ("б", 10), ("в", 20), ("г", 0), ("підсумок", 1)])
+    outcome = run(Book(path), parse_spec({"checks": [{**CHECK, "tol": tol}]}))
+    assert [result.status for result in outcome.results] == [Status.SKIPPED]
+    assert "допуск" in outcome.results[0].reason
+    assert exit_code(outcome) == 2
+
+
+def test_tolerance_smaller_than_the_numbers_still_works(tmp_path: Path) -> None:
+    path = save(tmp_path, [("а", 0), ("б", 10), ("в", 20), ("г", 0), ("підсумок", 30.04)])
+    near = run(Book(path), parse_spec({"checks": [{**CHECK, "tol": "0.05"}]}))
+    assert [result.status for result in near.results] == [Status.OK]
+    far = run(Book(path), parse_spec({"checks": [{**CHECK, "tol": "0.03"}]}))
+    assert [result.status for result in far.results] == [Status.DIFF]
+
+
+def test_detail_row_before_the_first_group_is_reported(tmp_path: Path) -> None:
+    # рядок-деталь стоїть над першою групою: суми сходяться, а в жодну групу він не входить
+    rows = [("201.001", 10), ("201", 20), ("201.002", 20), ("Разом", 30)]
+    outcome = check_table(save(tmp_path, rows))
+    assert {result.status for result in outcome.results} == {Status.OK}
+    assert [(row.row, row.label) for row in outcome.unrecognized] == [(2, "201.001")]
+    assert "до першої групи" in outcome.unrecognized[0].reason
+    assert exit_code(outcome) == 2
