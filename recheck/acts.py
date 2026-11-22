@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from zipfile import BadZipFile
@@ -192,6 +192,11 @@ def _label(book: Book, sheet: str, addr: str) -> str:
     return "" if raw is None else str(raw).strip()
 
 
+def _tagged(cell: Cell, title: str) -> Cell:
+    """Обидва файли можуть мати аркуш з тією самою назвою: адреса каже, з якого документа."""
+    return replace(cell, sheet=f"{title}: {cell.sheet}")
+
+
 def read_doc(book: Book, layout: Layout, title: str) -> Doc:
     lines: list[Line] = []
     strays: list[Stray] = []
@@ -207,7 +212,7 @@ def read_doc(book: Book, layout: Layout, title: str) -> Doc:
                 strays.append(Stray(title, row, label, "стоїть після підсумкового рядка"))
             continue
         if label.casefold() == layout.total_label.casefold():
-            total = book.cell(layout.sheet, f"{layout.amount}{row}")
+            total = _tagged(book.cell(layout.sheet, f"{layout.amount}{row}"), title)
             continue
         if not filled:
             continue
@@ -215,7 +220,10 @@ def read_doc(book: Book, layout: Layout, title: str) -> Doc:
         if not key:
             strays.append(Stray(title, row, label, "є числа, але немає номера позиції"))
             continue
-        cells = {name: book.cell(layout.sheet, f"{getattr(layout, name)}{row}") for name in FIELDS}
+        cells = {
+            name: _tagged(book.cell(layout.sheet, f"{getattr(layout, name)}{row}"), title)
+            for name in FIELDS
+        }
         name = _label(book, layout.sheet, f"{layout.name}{row}") if layout.name else ""
         lines.append(Line(row, key, name, cells))
     return Doc(title, layout, lines, total, strays)
@@ -469,13 +477,13 @@ def render(outcome: Outcome, act_name: str, reference_name: str, spec_name: str)
             "|---|---|---:|---:|---:|---|",
         ]
         for r in diffs:
-            note = f" ({r.reason})" if r.reason else ""
+            what = r.reason if r.field == "presence" else _what(r)
             cells = ", ".join(f"`{ref}`" for ref in r.refs)
             reference = _show(r.reference)
             if r.field == "calc":
                 reference = f"{reference} (перерахунок)"
             lines.append(
-                f"| {r.key} | {_what(r)}{note} | {_show(r.act)} | {reference} "
+                f"| {r.key} | {what} | {_show(r.act)} | {reference} "
                 f"| {_show(r.diff) if r.diff is not None else ''} | {cells} |"
             )
     else:
