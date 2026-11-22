@@ -1,0 +1,18 @@
+{
+  "_comment": "Розкладка умовна: справжнього вивантаження з кошторисної програми автор не бачив. Під інший файл міняються лише літери стовпчиків і номер першого рядка.",
+  "tolerance": "0",
+  "act": {
+    "sheet": "Акт",
+    "first_row": 4,
+    "columns": {"key": "A", "name": "B", "unit": "C", "qty": "D", "price": "E", "amount": "F"},
+    "total_label_col": "B",
+    "total_label": "Разом"
+  },
+  "reference": {
+    "sheet": "Акт",
+    "first_row": 4,
+    "columns": {"key": "B", "name": "C", "unit": "D", "qty": "E", "price": "F", "amount": "G"},
+    "total_label_col": "C",
+    "total_label": "Разом"
+  }
+}

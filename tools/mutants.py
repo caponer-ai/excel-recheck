@@ -222,6 +222,96 @@ MUTANTS = [
         "_BAD_KINDS = (Kind.TEXT, Kind.TEXT_NUMBER, Kind.FORMULA_NO_VALUE)",
         "_BAD_KINDS = (Kind.TEXT_NUMBER, Kind.FORMULA_NO_VALUE)",
     ),
+    (
+        "M37 пропущена позиція мовчки зникає",
+        "recheck/acts.py",
+        "        if a is None and r is not None:\n",
+        "        if a is None and r is not None:\n            continue\n",
+    ),
+    (
+        "M38 зайва позиція мовчки зникає",
+        "recheck/acts.py",
+        "        if r is None and a is not None:\n",
+        "        if r is None and a is not None:\n            continue\n",
+    ),
+    (
+        "M39 дубль номера позиції не помічається",
+        "recheck/acts.py",
+        "        if key in act_dupes or key in ref_dupes:\n",
+        "        if False:\n",
+    ),
+    (
+        "M40 дубль в еталоні не помічається",
+        "recheck/acts.py",
+        "        if key in act_dupes or key in ref_dupes:\n",
+        "        if key in act_dupes:\n",
+    ),
+    (
+        "M41 одиниця виміру не звіряється",
+        "recheck/acts.py",
+        "status = Status.OK if _unit(ua) == _unit(ur) else Status.DIFF",
+        "status = Status.OK",
+    ),
+    (
+        "M42 порожня одиниця не дає «не перевірено»",
+        "recheck/acts.py",
+        "    if not _unit(ua) or not _unit(ur):\n",
+        "    if False:\n",
+    ),
+    (
+        "M43 число текстом вважається числом",
+        "recheck/acts.py",
+        "    bad = [c for c in (a, r) if c.kind is not Kind.NUMBER]\n",
+        "    bad = [c for c in (a, r) if c.kind is Kind.TEXT]\n",
+    ),
+    (
+        "M44 арифметика рядка не перевіряється",
+        "recheck/acts.py",
+        "status = Status.OK if abs(amount.value - mine) <= tol else Status.DIFF",
+        "status = Status.OK",
+    ),
+    (
+        "M45 перерахунок відкидає копійку замість округлення",
+        "recheck/acts.py",
+        "quantize(_CENT, ROUND_HALF_UP)",
+        'quantize(_CENT, "ROUND_DOWN")',
+    ),
+    (
+        "M46 допуск полів розширено на копійку",
+        "recheck/acts.py",
+        "status = Status.OK if abs(a.value - r.value) <= tol else Status.DIFF",
+        'status = Status.OK if abs(a.value - r.value) <= tol + Decimal("0.01") else Status.DIFF',
+    ),
+    (
+        "M47 рядок без номера позиції ховається",
+        "recheck/acts.py",
+        "        if not key:\n",
+        "        if not key:\n            continue\n",
+    ),
+    (
+        "M48 «Разом» акта не звіряється з еталоном",
+        "recheck/acts.py",
+        "status = Status.OK if abs(total.value - other) <= tol else Status.DIFF",
+        "status = Status.OK",
+    ),
+    (
+        "M49 від'ємний допуск приймається",
+        "recheck/acts.py",
+        "    if not tol.is_finite() or tol < 0:\n",
+        "    if not tol.is_finite():\n",
+    ),
+    (
+        "M50 рядки після «Разом» ховаються",
+        "recheck/acts.py",
+        "            if filled or label:\n",
+        "            if False:\n",
+    ),
+    (
+        "M51 два поля на один стовпчик приймаються",
+        "recheck/acts.py",
+        "    if len(set(used.values())) != len(used):\n",
+        "    if False:\n",
+    ),
 ]
 
 
